@@ -1,0 +1,19 @@
+{
+  "name": "project-name",
+  "description": "Project Description",
+  "authors": "Paintxd",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "start": "ts-node-script -r dotenv/config src/index.ts dotenv_config_path=.env",
+    "debug": "ts-node-script -r dotenv/config src/index.ts dotenv_config_path=.env.dev"
+  },
+  "dependencies": {
+    "dotenv": "^8.2.0"
+  },
+  "devDependencies": {
+    "ts-node": "^9.1.1",
+    "typescript": "^4.1.3"
+  }
+}
