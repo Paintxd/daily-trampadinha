@@ -13,3 +13,10 @@ export const WHITE: Color = {
   blue: 1,
   alpha: 1,
 };
+
+export const GREY: Color = {
+  red: 0.6,
+  green: 0.6,
+  blue: 0.6,
+  alpha: 1,
+}
