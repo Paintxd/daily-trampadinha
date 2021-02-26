@@ -1,3 +1,5 @@
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import {
   GoogleSpreadsheet,
   GoogleSpreadsheetCell,
@@ -5,18 +7,15 @@ import {
 } from 'google-spreadsheet';
 import inquirer from 'inquirer';
 import { LastDayInfo } from './models/interfaces/lastDayInfo';
+import { WorkedDayInputs } from './models/interfaces/workedDayInputs';
+import * as SheetCells from './models/sheetCells';
 import * as FileManagement from './utils/fileManagement';
 import * as TerminalSetup from './utils/terminal';
-import * as SheetCells from './models/sheetCells';
-// import * as Colors from './models/colors';
-
-// sample code for full overtime days
-// leave.backgroundColor = Colors.PURPLE;
-// leave.textFormat = { foregroundColor: Colors.WHITE }
 
 const init = async (doc: GoogleSpreadsheet) => {
   await doc.loadInfo();
-  const sheet = doc.sheetsByTitle[new Date(Date.now()).getFullYear()];
+  const today = new Date(Date.now());
+  const sheet = doc.sheetsByTitle[today.getFullYear()];
   const { row, overtime }: LastDayInfo = FileManagement.getData();
 
   const startOption = await inquirer
@@ -24,7 +23,9 @@ const init = async (doc: GoogleSpreadsheet) => {
       {
         type: 'list',
         name: 'start_option',
-        message: 'Selecione opção do dia - ${}',
+        message: `Selecione opção do dia - ${format(today, 'dd/MM', {
+          locale: ptBR,
+        })}`,
         choices: ['Lançar horario', 'Folga', 'Hora Extra'],
         filter: (val: string) => {
           return val.toLowerCase().replace(' ', '_');
@@ -34,16 +35,39 @@ const init = async (doc: GoogleSpreadsheet) => {
     .then(async (res) => {
       return res.start_option;
     });
+
   const fullOvertime = startOption === 'hora_extra';
+  const dayOff = startOption === 'folga';
   const todayRow = await loadTodayRow(sheet, row, fullOvertime);
   const cells = SheetCells.instantiateCells(sheet, todayRow);
-  sheet.saveUpdatedCells();
 
-  const updatedOvertime = calculateOvertime(
-    cells.dayOvertime,
-    overtime,
-    fullOvertime,
-  );
+  switch (startOption) {
+    case 'lançar_horario':
+      await inquirer.prompt(SheetCells.inputs).then((res) => {
+        const inputs: WorkedDayInputs = { ...res };
+        SheetCells.setWorkedDay(cells, inputs);
+      });
+      break;
+
+    case 'folga':
+      SheetCells.setDayOff(cells);
+      break;
+
+    case 'hora_extra':
+      await inquirer.prompt(SheetCells.inputs).then((res) => {
+        const inputs: WorkedDayInputs = { ...res };
+        SheetCells.setWorkedDay(cells, inputs);
+        SheetCells.setOvertimeDay(cells);
+      });
+      break;
+  }
+  await sheet.saveUpdatedCells();
+  const dayOvertime = await SheetCells.dayOvertime(sheet, todayRow);
+
+  const updatedOvertime = dayOff
+    ? overtime
+    : calculateOvertime(dayOvertime, overtime, fullOvertime);
+
   FileManagement.updateData(todayRow, updatedOvertime);
 };
 
@@ -52,11 +76,12 @@ const calculateOvertime = (
   overtime: number,
   fullOvertime: boolean,
 ) => {
+  if (fullOvertime) return overtime;
   const [hourOvertime, minutesOvertime] = dayOvertime.formattedValue
     .split(':')
     .map((val: string) => Number(val));
 
-  if (dayOvertime.backgroundColor.red === 1 && !fullOvertime)
+  if (dayOvertime.backgroundColor.red === 1)
     return overtime - hourOvertime * 60 - minutesOvertime;
 
   return overtime + hourOvertime * 60 + minutesOvertime;
@@ -76,6 +101,7 @@ const loadTodayRow = async (
 
     if (workedTime.formattedValue || (date && fullOvertime)) return todayRow;
 
+    sheet.resetLocalCache(false);
     todayRow++;
   }
 };
