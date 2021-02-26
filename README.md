@@ -1,4 +1,5 @@
 ##Setups
+
 Create a .env file with
 * GOOGLE_SPREADSHEET_ID= spreadsheet id
 * GOOGLE_SERVICE_ACCOUNT_EMAIL= email
